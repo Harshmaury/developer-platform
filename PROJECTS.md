@@ -1,4 +1,6 @@
 # Platform Projects
+# @version: 2.1.0
+# @updated: 2026-03-15
 
 Complete registry of all developer platform repositories.
 
@@ -6,11 +8,11 @@ Complete registry of all developer platform repositories.
 
 ## Core Platform Triangle
 
-| Project | Domain    | Purpose                              | Port  | Repository                            |
-|---------|-----------|--------------------------------------|-------|---------------------------------------|
-| Nexus   | Control   | System coordination, service runtime | 8080  | https://github.com/Harshmaury/Nexus   |
-| Atlas   | Knowledge | Workspace awareness, source indexing | 8081  | https://github.com/Harshmaury/Atlas   |
-| Forge   | Execution | Intent execution, workflow engine    | 8082  | https://github.com/Harshmaury/Forge   |
+| Project | Domain    | Purpose                              | Port  | Repository                            | Status |
+|---------|-----------|--------------------------------------|-------|---------------------------------------|--------|
+| Nexus   | Control   | System coordination, service runtime | 8080  | https://github.com/Harshmaury/Nexus   | ✅ Phases 1–14 complete |
+| Atlas   | Knowledge | Workspace awareness, source indexing | 8081  | https://github.com/Harshmaury/Atlas   | ✅ Phase 2 complete (v0.2.0) |
+| Forge   | Execution | Intent execution, workflow engine    | 8082  | https://github.com/Harshmaury/Forge   | ⏳ Phase 1 ready to start |
 
 ---
 
@@ -52,8 +54,46 @@ Override any port via environment variable before starting the service.
 ~/bin/engxd    Nexus daemon
 ~/bin/engx     Nexus CLI
 ~/bin/engxa    Nexus remote agent
-~/bin/atlas    Atlas knowledge service    (Phase 1 — not yet built)
-~/bin/forge    Forge execution engine     (Phase 1 — not yet built)
+~/bin/atlas    Atlas knowledge service    ✅ Phase 2 complete
+~/bin/forge    Forge execution engine     ⏳ Phase 1 not yet built
+```
+
+---
+
+## Phase Dependency Chain
+
+```
+Nexus Phases 1–14 ✅  →  Atlas Phase 1 ✅  →  Atlas Phase 2 ✅  →  Forge Phase 1  →  Forge Phase 2  →  Forge Phase 3
+```
+
+Forge Phase 1 requires Atlas Phase 1 running (context enrichment via Atlas HTTP API).
+
+---
+
+## Atlas API Reference (for Forge client)
+
+```
+Phase 1:
+  GET  /health
+  GET  /workspace
+  GET  /workspace/projects
+  GET  /workspace/project/:id
+  GET  /workspace/search?q=
+  GET  /workspace/context
+
+Phase 2:
+  GET  /workspace/capabilities
+  GET  /workspace/conflicts
+  GET  /workspace/graph
+```
+
+---
+
+## Tags
+
+```
+Nexus   v0.14-stable           Phases 1–14
+Atlas   v0.2.0-phase2-complete Phase 2 — capability model + graph + conflict detection
 ```
 
 ---
