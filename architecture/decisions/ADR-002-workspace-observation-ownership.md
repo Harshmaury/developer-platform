@@ -2,6 +2,7 @@
 
 Date: 2026-03-15
 Status: Accepted
+Updated: 2026-03-16 — consumer import path corrected; pkg/events re-export documented
 
 ---
 
@@ -28,41 +29,65 @@ through the platform event bus alongside existing service events.
 
 ## Workspace Event Topics
 
-Workspace event topics are declared as constants in:
+Workspace event topic constants are declared in:
 
     internal/eventbus/bus.go
 
-alongside all existing Nexus event topic constants.
+and re-exported for use by external services (Atlas, Forge) in:
 
-Topic naming convention — identical to existing topics:
-- lowercase
-- dot-separated
-- declared as named constants
-- documented with inline comments
+    pkg/events/topics.go
 
-Topics to add:
+Both files are in the Nexus repository. The re-export exists because
+Go's module system prohibits external modules from importing `internal/`
+packages. `internal/eventbus` is for Nexus-internal use only.
 
-    TopicFileCreated       Topic = "workspace.file.created"
-    TopicFileModified      Topic = "workspace.file.modified"
-    TopicFileDeleted       Topic = "workspace.file.deleted"
-    TopicWorkspaceUpdated  Topic = "workspace.updated"
-    TopicProjectDetected   Topic = "workspace.project.detected"
+Topics:
+
+    TopicWorkspaceFileCreated      "workspace.file.created"
+    TopicWorkspaceFileModified     "workspace.file.modified"
+    TopicWorkspaceFileDeleted      "workspace.file.deleted"
+    TopicWorkspaceUpdated          "workspace.updated"
+    TopicWorkspaceProjectDetected  "workspace.project.detected"
+
+`TopicWorkspaceUpdated` is a debounced batch signal — Nexus publishes it
+once after a burst of file events settles, not once per file. Consumers
+that need to rebuild large data structures (graph edges, capability index)
+should act on this topic rather than on individual file events.
 
 ## Consumer Rule
 
 All consumers (Atlas, Forge, and any future services) must:
-- import topic constants from the Nexus eventbus package
-- never redefine topic strings locally in their own packages
 
-This preserves the single-source guarantee for event topic names.
-If a consumer redefines a topic string locally, it silently decouples
-from the canonical name and misses events without any compile-time error.
+- Import topic constants from `github.com/Harshmaury/Nexus/pkg/events`
+- Never import from `github.com/Harshmaury/Nexus/internal/eventbus`
+- Never redefine topic strings locally in their own packages
+
+Correct:
+
+    import nexusevents "github.com/Harshmaury/Nexus/pkg/events"
+    // use nexusevents.TopicWorkspaceFileCreated
+
+Wrong:
+
+    const myTopic = "workspace.file.created"   // silent decoupling
+
+## Event Subscription Pattern
+
+Atlas and Forge subscribe to workspace events by polling the Nexus HTTP
+API: `GET /events?limit=50&since=<last_id>` every 3 seconds.
+
+`since` is the highest event ID received so far. Consumers track this
+value across poll cycles to avoid reprocessing events. If `since` is
+omitted, Nexus returns the most recent events only.
+
+Neither Atlas nor Forge subscribes to the internal Nexus event bus
+directly. Neither runs a filesystem watcher of any kind.
 
 ## Implications
 
 - Atlas subscribes to workspace topics to trigger index updates.
 - Forge subscribes to workspace topics to trigger event-driven automation
-  (Phase 3 of Forge evolution).
+  (Phase 3 of Forge evolution, ADR-007).
 - No other component runs a filesystem watcher.
 - The Nexus watcher configuration determines which directories are observed.
 

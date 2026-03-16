@@ -2,6 +2,7 @@
 
 Date: 2026-03-15
 Status: Accepted
+Updated: 2026-03-16 — context enrichment frequency rule clarified for workflow execution
 
 ---
 
@@ -43,17 +44,30 @@ Forge uses the workspace snapshot to fill `workspace_root` when missing.
 
 1. Caller-supplied fields are never overwritten. If the caller provides
    `project_path`, Atlas is not queried for it.
+
 2. Enrichment is best-effort. If Atlas is unreachable, Forge continues
    with whatever context is available rather than failing the command.
+
 3. The execution engine always receives a command — it never receives
    a refusal due to missing context alone.
+
+4. For workflow execution (Phase 2+), context enrichment runs once per
+   workflow run before the step loop begins — not once per step.
+   All steps in a workflow share the same base context. The target is
+   the same for every step; querying Atlas and Nexus once per step
+   would repeat identical calls with identical results.
+   A per-run timeout of 10 seconds caps the enrichment budget.
+
+5. Enrichment for single commands (Phase 1 API) runs once per command,
+   which is the same as once per "run" since a single command is a
+   single-step run.
 
 ## Degradation Behaviour
 
 If Atlas is unreachable during enrichment:
 
 - Forge logs a WARNING identifying which fields could not be populated.
-- The command proceeds with the context fields that were already present.
+- The command or workflow proceeds with the context fields already present.
 - The intent handler is responsible for detecting missing fields and
   returning an appropriate error if it cannot proceed.
 
@@ -64,7 +78,7 @@ This approach keeps Forge operational for callers who supply full context
 
 - Scan the filesystem to derive project_path or language
 - Maintain its own index of workspace projects
-- Cache Atlas responses between commands (Phase 1 is stateless)
+- Query Atlas more than once per workflow run for the same target
 - Fail a command solely because Atlas context enrichment was incomplete
 
 ## Implications
@@ -72,10 +86,10 @@ This approach keeps Forge operational for callers who supply full context
 - `internal/context/resolver.go` is the single location where Atlas
   enrichment logic lives. All entry points route through it.
 - `internal/atlas/client.go` is the sole location where Atlas endpoint
-  paths are defined. If Atlas adds new endpoints, only this file changes.
-- The translator populates the command's id, intent, target, and parameters.
-  The resolver populates the context. The executor receives a fully populated
-  command. These three responsibilities are cleanly separated.
+  paths are defined.
+- The translator populates id, intent, target, and parameters.
+  The resolver populates context once. The executor receives a fully
+  populated command. These three responsibilities are cleanly separated.
 
 ## Relationship to ADR-002
 
@@ -88,26 +102,21 @@ to answer questions about workspace structure.
 
 **Forge scans the filesystem directly** — rejected because it duplicates
 Atlas capability and introduces a second, uncoordinated view of the workspace.
-Two filesystem scanners would produce inconsistent results and increase
-system load.
 
 **Callers must always supply full context** — rejected because it creates
-unnecessary friction for CLI usage and makes automation harder. Callers
-should only need to supply intent and target; ambient context is the
-platform's responsibility.
+unnecessary friction for CLI usage and makes automation harder.
 
-**Forge caches Atlas responses** — rejected for Phase 1 because Forge is
-explicitly stateless (ADR-004). A context cache introduces state and staleness
-concerns that belong in a later phase if proven necessary.
+**Forge queries Atlas once per workflow step** — rejected because all steps
+in a workflow share the same target. Repeated identical HTTP calls add
+latency (N×3 calls for an N-step workflow) without benefit.
+
+**Forge caches Atlas responses across commands** — rejected because Forge
+is stateless between commands (ADR-004). Within-run context sharing
+(rule 4) is not a cache — it is the single enrichment call per run.
 
 ## Consequences
 
 Atlas becomes a soft dependency of Forge. Forge degrades gracefully when
-Atlas is unavailable rather than failing hard. This means a `build nexus`
-command submitted with minimal context (intent + target only) will succeed
-even when Atlas is down, as long as the intent handler can determine what
-to do from the project ID alone — which the `build` handler can, because
-it falls back to the project directory structure.
-
-The clean separation between translation (Translator), enrichment (Resolver),
-and execution (Engine) makes each layer independently testable and replaceable.
+Atlas is unavailable rather than failing hard. The clean separation between
+translation (Translator), enrichment (Resolver), and execution (Engine)
+makes each layer independently testable and replaceable.
