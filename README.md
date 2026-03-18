@@ -1,52 +1,14 @@
 # Developer Platform
 
-Platform governance repository for the developer platform.
+Governance repository for the engx developer platform. No implementation code lives here.
 
-This repository contains architecture documentation, design philosophy,
-and architectural decision records for the platform as a whole.
-
-It does not contain implementation code for any project.
-
----
-
-## Platform Capability Triangle
-
-```
-Control    Nexus   coordinates the system   github.com/Harshmaury/Nexus
-Knowledge  Atlas   understands the system   github.com/Harshmaury/Atlas
-Execution  Forge   acts on the system       github.com/Harshmaury/Forge
-```
-
----
-
-## Contents
-
-```
-architecture/
-  decisions/                    Architecture Decision Records (ADRs)
-  platform-capability-boundaries.md
-  architecture-evolution-rules.md
-
-AI_CONTEXT.md                   Workspace context for AI systems
-workflow-philosophy.md          Platform design philosophy
-PROJECTS.md                     Platform project registry
-```
-
----
-
-## Key Rules
-
-- Platform governance lives here. Implementation lives in project repos.
-- Every new platform capability requires an ADR in `architecture/decisions/`.
-- Project-specific architecture lives inside each project repository.
-- The three capability domains — Control, Knowledge, Execution — are stable.
-
----
-
-## Architecture Reference
-
-Start here: `architecture/platform-capability-boundaries.md`
-
-Evolution rules: `architecture/architecture-evolution-rules.md`
-
-Decisions: `architecture/decisions/`
+| Start here | File |
+|---|---|
+| AI session onboarding | `AI_CONTEXT.md` |
+| File-level navigation + troubleshooting | `standards/navigation.md` |
+| All operational commands | `RUNBOOK.md` |
+| Design philosophy | `workflow-philosophy.md` |
+| Term definitions | `definitions/glossary.md` |
+| Capability ownership | `architecture/platform-capability-boundaries.md` |
+| Evolution rules | `architecture/architecture-evolution-rules.md` |
+| Architecture decisions | `architecture/decisions/` |

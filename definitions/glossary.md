@@ -14,6 +14,8 @@ A structured signal emitted by Nexus when something changes in the platform
 or workspace. Consumed by all observer services via polling `GET /events?since=<id>`
 or streaming `GET /events/stream`.
 
+**Delivery model:** at-least-once via cursor-based polling. Ordering: by Nexus event ID (monotonically increasing integer). Consumers must be idempotent — duplicate delivery is possible if a poll fails mid-cycle.
+
 **Owner:** Nexus (ADR-001, ADR-002)
 **Code:** `github.com/Harshmaury/Nexus/pkg/events/topics.go` — topic constants
 **Canon:** `github.com/Harshmaury/Canon/events/events.go` — EventType constants
@@ -82,6 +84,8 @@ collection cycles that share the same trace ID. Assembled on demand by Observer.
 An aggregated quantitative snapshot of platform health at a point in time.
 Derived from Nexus runtime counters, Forge execution history, and Atlas
 workspace state. Non-authoritative — reflects collected data, not system truth.
+
+**Relationship to events:** events are discrete state transitions; metrics are continuous aggregations derived from event streams and runtime counters. They describe different views of the same system — both are correct, neither supersedes the other.
 
 **Owner:** Metrics (ADR-011)
 **Code:** `github.com/Harshmaury/Metrics/internal/snapshot/model.go`
