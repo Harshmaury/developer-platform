@@ -3,6 +3,8 @@
 The design philosophy governing how this developer platform is built
 and how it evolves over time.
 
+**Updated:** 2026-03-19
+
 ---
 
 ## Core Idea
@@ -32,12 +34,15 @@ Platform components treat projects as dynamic, not fixed.
 System descriptions are organised by capabilities, not implementations.
 The three stable capability domains are:
 
-    Control — Nexus
-    Knowledge — Atlas
-    Execution — Forge
+```
+Control    Nexus   coordinates the system
+Knowledge  Atlas   understands the system
+Execution  Forge   acts on the system
+```
 
-Specific projects implementing these capabilities may change over time.
-The capability domains do not change.
+Observer services (Metrics, Navigator, Guardian, Observer, Sentinel) form a
+fourth layer — they observe without acting. Specific projects implementing
+these capabilities may change over time. The capability domains do not change.
 
 ### 3. Workflow Must Be Decoupled From Implementation
 
@@ -58,53 +63,61 @@ Projects never rely on internal implementation details of other projects.
 
 ### 6. Interface Contracts Over Direct Dependencies
 
-Communication between components relies on interfaces, not coupling.
-Preferred mechanisms: REST APIs, event bus, command interfaces.
-Direct internal package dependencies between separate projects are prohibited.
+Services communicate through documented HTTP/JSON contracts only.
+No shared memory. No internal package imports across service boundaries.
+The only permitted cross-module import is Canon (`github.com/Harshmaury/Canon`)
+for shared constants — never internal packages.
 
-### 7. Documentation Must Be Update-Friendly
+### 7. Observer Isolation
 
-Architecture documents are structured so updates affect only a small section.
-Monolithic documents that require large rewrites to change one thing
-are a design failure.
+Observer services (ports 8083–8087) are strictly read-only. They derive
+signals from authoritative sources but never write to them. An observer
+that calls a write endpoint is a design violation, not a bug.
 
-### 8. Future-Proof Design
+### 8. ADR-First Evolution
 
-New tools will appear. Languages may change. Infrastructure providers
-may change. Execution environments may change.
-Architecture supports extension without redesign.
+No platform capability is built without an ADR committed first. The decision
+record precedes the implementation — always. This is not process overhead;
+it is the mechanism by which the platform stays coherent across sessions.
 
-### 9. Environment-Agnostic Descriptions
+### 9. Canon as the Single Source of Shared Truth
 
-Descriptions avoid assuming specific infrastructure unless necessary.
-No component says "Docker must run all workloads."
-Components say "a container runtime provider executes workloads."
+Constants used across multiple services live in Canon. Services import from
+Canon; they never redefine constants locally. A locally-defined constant that
+already exists in Canon is a Canon violation.
 
-### 10. Separation of Workflow and Architecture
+### 10. Operational Correctness Over Theoretical Purity
 
-Workflow definitions describe how work is performed.
-Architecture defines system structure.
-The two are loosely connected and evolve independently.
-
----
-
-## The Platform Model
-
-The workstation becomes a programmable development platform where:
-
-- development tools are orchestrated rather than manually executed
-- workflows are automated and reproducible
-- environments are programmable and controlled by software
-- projects remain independent but integrate into a larger system
-- the developer interacts through a unified command interface
+The platform is a working system, not a research project. When a theoretical
+concern conflicts with a confirmed operational need, the operational need wins —
+provided the resolution is documented in an ADR. Runtime findings from actual
+platform runs carry more weight than structural analysis of code snapshots.
 
 ---
 
-## Tools Become Components
+## Platform Authority Model
 
-Individual tools — compilers, container runtimes, scripts — are not
-standalone utilities. They are components within the platform that
-can be orchestrated and combined.
+Not all services have equal authority. The hierarchy is explicit:
+
+**Tier 1 — Authoritative (writers)**
+Nexus is the sole writer for project registry, service lifecycle, and events.
+Forge is the sole writer for execution history and workflow state.
+Atlas is the sole writer for the knowledge graph.
+
+**Tier 2 — Reactive (CLI, agents)**
+`engx` sends commands to Tier 1 services via HTTP.
+`engxa` reconciles service state by starting and stopping processes.
+Neither stores authoritative state.
+
+**Tier 3 — Observational (read-only)**
+Metrics, Navigator, Guardian, Observer, Sentinel derive signals from Tier 1.
+They present, not decide. They report, not act.
+Observer findings are advisory. Guardian findings are advisory.
+Sentinel insights are advisory. None trigger platform actions.
+
+**Canon — Cross-cutting**
+Canon provides shared constants. It has no runtime component, no HTTP server,
+no state. It is a library dependency, not a service.
 
 ---
 
@@ -112,18 +125,21 @@ can be orchestrated and combined.
 
 Instead of:
 ```
-docker build
-docker run
-kubectl apply
+go build ./...
+./nexus &
+./atlas &
 ```
 
 The developer uses:
 ```
-engx run deploy nexus
+engx build nexus
+engx platform start
+engx doctor
 ```
 
-Forge plans and executes the required steps. The developer expresses
-intent. The platform handles coordination.
+Forge executes the build. Nexus manages the lifecycle. Guardian and Sentinel
+report what's happening. The developer expresses intent. The platform handles
+coordination.
 
 ---
 
@@ -133,41 +149,9 @@ The system supports continuous evolution. New projects, new languages,
 new tools, and new workflows are added without architectural redesign.
 The capability domains are stable. The implementations within them evolve.
 
----
-
-## Platform Authority Model
-
-Every action on the platform flows through a defined authority chain.
-This hierarchy is mandatory and cannot be bypassed by any automated system.
-
-```
-Sentinel  → suggests   AI prose narrative, on explicit request only
-Guardian  → flags      Deterministic findings, read-only, non-blocking
-Developer → decides    Human always in the loop — cannot be automated away
-Forge     → executes   On developer intent or validated automated trigger
-Nexus     → controls   Sole authority for service start/stop
-```
-
-**Sentinel** produces human-readable reasoning about platform state when
-the developer explicitly requests it via `GET /insights/explain`. It never
-suggests control actions and is never called on background polling cycles.
-
-**Guardian** evaluates deterministic policy rules and produces findings.
-Findings are audit outputs only. Guardian has no execution authority —
-it cannot block, trigger, or modify any platform action.
-
-**Developer** is the mandatory decision node. No automated system may
-bypass the developer to trigger execution. Automation (Forge triggers,
-workflow automation) acts on pre-approved patterns defined by the developer
-— it does not make novel decisions autonomously.
-
-**Forge** executes on developer intent or on automation patterns the
-developer has explicitly configured. It never acts without either a direct
-command or a registered trigger.
-
-**Nexus** is the sole authority for service lifecycle. Only Nexus may
-start or stop a service. Forge instructs Nexus via
-`POST /projects/:id/start|stop` — no other service has this authority.
-
-The Developer node in this hierarchy is permanent. It is not an
-implementation detail that can be optimised away as the platform matures.
+New capabilities follow this sequence:
+1. Identify which capability domain it belongs to
+2. Confirm no existing service already owns it
+3. Write an ADR in `architecture/decisions/`
+4. Implement in the correct service
+5. Update `SERVICE-CONTRACT.md` and `AI_CONTEXT.md`

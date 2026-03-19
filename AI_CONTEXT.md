@@ -2,163 +2,144 @@
 
 Context document for AI systems working within this developer platform.
 Read this file at the start of any session involving platform architecture,
-new service design, or cross-project integration work.
+new service design, code changes, or cross-project integration work.
 
-Updated: 2026-03-18
-
----
-
-## What This Platform Is
-
-A local developer control plane built on three capability domains plus
-five read-only observer services, a shared types library, and a packaging tool:
-
-    Control    Nexus     coordinates the system   :8080
-    Knowledge  Atlas     understands the system   :8081
-    Execution  Forge     acts on the system       :8082
-    Observer   Metrics   measures the system      :8083
-    Observer   Navigator maps the system          :8084
-    Observer   Guardian  audits the system        :8085
-    Observer   Observer  traces the system        :8086
-    Observer   Sentinel  reasons about the system :8087
-    Library    Canon     shared types + constants  (no port)
-    Tool       zp        packages the system       (no port)
-
-Each service is a separate Go project with its own repository.
-This repository governs the platform — it contains no implementation code.
+**Updated:** 2026-03-19 | **Tag:** v0.3.0-cross-service-commands
 
 ---
 
-## Platform Status (2026-03-18)
+## 1. What This Platform Is
 
-| Service   | Phase    | Tag               | Build |
-|-----------|----------|-------------------|-------|
-| Nexus     | 1–16     | v1.2.0-phase16    | ✅    |
-| Atlas     | 1–3      | v0.5.0-phase3     | ✅    |
-| Forge     | 1–4      | v0.5.0-phase4     | ✅    |
-| Metrics   | 1        | v0.1.0-phase1     | ✅    |
-| Navigator | 1        | v0.1.0-phase1     | ✅    |
-| Guardian  | 1        | v0.1.0-phase1     | ✅    |
-| Observer  | 1        | v0.1.0-phase1     | ✅    |
-| Sentinel  | 2        | v0.2.0-phase2     | ✅    |
-| Canon     | —        | v0.1.0            | ✅    |
-| zp        | —        | v2.0.0            | ✅    |
+A local developer control plane. Three capability layers, ten services, one CLI.
 
-All services build clean as of 2026-03-18.
-
----
-
-## Key Rules for AI Systems
-
-**1. Capability ownership is fixed.**
-Before suggesting a feature, check `architecture/platform-capability-boundaries.md`.
-Every capability has exactly one owner. Duplication is a design failure.
-
-**2. ADRs gate implementation.**
-No new platform capability is built without an ADR in `architecture/decisions/`.
-If a proposed change does not have an ADR, the ADR comes first.
-Next ADR: ADR-022.
-
-**3. Projects are independent.**
-Atlas and Forge do not import Nexus internal packages.
-The only permitted cross-module import is `github.com/Harshmaury/Nexus/pkg/events`
-for workspace topic constants — never `internal/eventbus`.
-Integration is always HTTP API or event subscription.
-
-**4. Nexus owns three things permanently.**
-Project registry (ADR-001), filesystem observation (ADR-002),
-and service runtime state. These never move to another service.
-
-**5. Import from Canon — never redefine.**
-All platform-wide constants (header names, event types, service names,
-nexus.yaml descriptor schema) live in `github.com/Harshmaury/Canon`.
-Import Canon — never hardcode `"X-Service-Token"`, `"X-Trace-ID"`, or
-event type strings locally in any service.
-
-**6. Event topics are declared in one place.**
-Topic constants live in Nexus `internal/eventbus/bus.go`,
-re-exported via `pkg/events`. External consumers import from `pkg/events` only.
-
-**7. Forge command schema is fixed.**
-The five-field command object (id, intent, target, parameters, context)
-is the ADR-004 contract. Suggest extensions additively, never breaking changes.
-
-**8. Context enrichment runs once per workflow run.**
-`ResolveContext` (Atlas + Nexus lookup) is called once before the step loop,
-not once per step. All steps share the same base context. (ADR-006 Rule 4)
-
-**9. Trigger dispatch is bounded.**
-Forge caps concurrent workflow goroutines at 8 via semaphore.
-Triggers are best-effort — dropped under load with a WARNING log. (ADR-007)
-
-**10. All migrations in one place.**
-Every service keeps all schema migrations in a single ordered slice in `db.go`.
-Never in `init()` functions in separate files.
-
-**11. Observer services are strictly read-only.**
-Metrics, Navigator, Guardian, Observer, Sentinel (ports 8083–8087) must never
-call POST /projects/:id/start|stop, POST /commands, or any write endpoint.
-Governed by ADR-020. See each service's SERVICE-CONTRACT.md.
-
-**12. Sentinel AI is on-demand only.**
-The Anthropic API (claude-sonnet-4-6) is called ONLY when the developer
-explicitly requests GET /insights/explain. Never on background polling cycles.
-ANTHROPIC_API_KEY env var. Graceful degradation if absent. (ADR-018)
-
-**13. PreflightSnapshot is immutable.**
-Forge captures the Atlas graph state at preflight check time and passes it
-by value through the execution pipeline. Never re-queried between check and
-history log. Stored in execution_history.preflight_snapshot_json. (ADR-021)
-
-**14. Platform authority hierarchy.**
-Sentinel suggests → Guardian flags → Developer decides → Forge executes → Nexus controls.
-The Developer node is mandatory and cannot be bypassed by automation.
-See `workflow-philosophy.md` Platform Authority Model section.
-
----
-
-## Platform Architecture Files
-
-This repository:
 ```
-architecture/decisions/          ADR-001 through ADR-021
-architecture/platform-capability-boundaries.md
-architecture/architecture-evolution-rules.md
-definitions/glossary.md          Canonical term definitions
-standards/navigation.md          File-level map of all services
-workflow-philosophy.md           Design philosophy + authority model
+Control    Nexus   :8080   coordinates everything — sole registry, sole writer
+Knowledge  Atlas   :8081   understands the workspace — capability graph, verified projects
+Execution  Forge   :8082   acts on the workspace — build, test, run, deploy
+Observer   5 svcs  :8083–:8087   read-only — never call write endpoints
+Library    Canon   —       shared types — ServiceTokenHeader, TraceIDHeader, defaults
+Tool       ZP      —       packaging — builds ZIPs from nexus.yaml
 ```
 
-Service repositories:
-```
-github.com/Harshmaury/Nexus      v1.2.0-phase16
-github.com/Harshmaury/Atlas      v0.5.0-phase3
-github.com/Harshmaury/Forge      v0.5.0-phase4
-github.com/Harshmaury/Metrics    v0.1.0-phase1
-github.com/Harshmaury/Navigator  v0.1.0-phase1
-github.com/Harshmaury/Guardian   v0.1.0-phase1
-github.com/Harshmaury/Observer   v0.1.0-phase1
-github.com/Harshmaury/Sentinel   v0.2.0-phase2
-github.com/Harshmaury/Canon      v0.1.0
-github.com/Harshmaury/ZP         v2.0.0
-```
-
-Each service repo contains a `SERVICE-CONTRACT.md` at its root.
-Read it before writing any code for that service.
+This repository governs the platform. It contains no implementation code.
 
 ---
 
-## Open Architectural Gaps
+## 2. Current Platform State (2026-03-19)
 
-None at this time.
+| Service   | Version          | Phase    | Key State                              |
+|-----------|------------------|----------|----------------------------------------|
+| Nexus     | v1.2.0-phase16   | 1–16     | ADR-022 service register, ADR-023 reset |
+| Atlas     | v0.5.0-phase3    | 1–3      | nexus.yaml contract, verified graph    |
+| Forge     | v0.5.0-phase4    | 1–4      | PreflightSnapshot, execution history   |
+| Metrics   | v0.1.0-phase1    | 1        | Canon headers, event limit 500         |
+| Navigator | v0.1.0-phase1    | 1        | Canon headers, trace propagation       |
+| Guardian  | v0.1.0-phase1    | 1        | Canon headers, 5 policy rules          |
+| Observer  | v0.1.0-phase1    | 1        | Canon v0.3.0, trace assembler          |
+| Sentinel  | v0.2.0-phase2    | 1–2      | AI on-demand, lastEventID mutex        |
+| Canon     | v0.3.0           | —        | identity constants, default addrs      |
+| ZP        | v2.0.0           | —        | packaging tool                         |
 
-All previously identified gaps have been resolved:
-- Inter-service authentication → ADR-008 (X-Service-Token, all services)
-- Observer concurrency → fixed 2026-03-18 (sync.RWMutex, atomic snapshots)
-- Canon header constants → all services import identity.ServiceTokenHeader
-  and identity.TraceIDHeader — no hardcoded strings remain
-- Forge execution context race → ADR-021, PreflightSnapshot implemented
+**All repos on `main` branch. Tags:** v0.1.0-platform-working → v0.2.0-adr023-startup-grace → v0.3.0-cross-service-commands
 
-Next candidate: ADR-022 — Forge Phase 5 capability-gated execution
-(intent → required capability mapping, currently deferred from ADR-010).
-No implementation until ADR is written and accepted.
+**Compiled binaries:** `/tmp/bin/` — engxd, engx, engxa, atlas, forge, metrics, navigator, guardian, observer, sentinel
+
+---
+
+## 3. Twelve Rules — Never Violate
+
+| # | Rule | ADR |
+|---|------|-----|
+| 1 | Nexus is the only canonical project registry and filesystem observer | ADR-001, ADR-002 |
+| 2 | Import `identity.ServiceTokenHeader` and `identity.TraceIDHeader` from Canon only — never redefine | ADR-016 |
+| 3 | HTTP/JSON on 127.0.0.1 only — no gRPC, shared memory, message queues | ADR-003 |
+| 4 | All Forge input becomes a Command object before the executor sees it | ADR-004 |
+| 5 | Forge instructs Nexus via `POST /projects/:id/start\|stop` only | ADR-005 |
+| 6 | All inter-service calls carry `X-Service-Token`. `/health` always exempt | ADR-008 |
+| 7 | Observer services (8083–8087) are strictly read-only — never call write endpoints | ADR-020 |
+| 8 | Sentinel AI called only on explicit `GET /insights/explain` — never on polling | ADR-018 |
+| 9 | ADR-first — any new capability requires an ADR committed before implementation | Evo rules |
+| 10 | Capability duplication is a design failure — check capability matrix before building | Cap boundaries |
+| 11 | `engx register` auto-registers project + service from `.nexus.yaml` runtime section | ADR-022 |
+| 12 | `engx platform start` resets fail counts before queuing — never start without reset | ADR-023 |
+
+---
+
+## 4. Service Token
+
+```
+Service token (forge / inter-service): 7d5fcbe4-44b9-4a8f-8b79-f80925c1330e
+Atlas token (in service-tokens file):  f36150fa-a2a3-451b-b4d9-126027d07eb5
+Agent token (local dev):               local-agent-token
+```
+
+For local dev: `~/.nexus/service-tokens` must be absent (move to `.bak`).
+ServiceAuth is disabled when file is absent — engxa can then connect.
+
+---
+
+## 5. Canon Import Pattern
+
+```go
+import canon "github.com/Harshmaury/Canon/identity"
+
+req.Header.Set(canon.ServiceTokenHeader, token)  // "X-Service-Token"
+req.Header.Set(canon.TraceIDHeader, traceID)      // "X-Trace-ID"
+```
+
+Canon is in `go.mod` for all 8 service repos. Never hardcode header strings.
+
+---
+
+## 6. ADR Status
+
+| ADR | Title | Status |
+|-----|-------|--------|
+| ADR-001 | Project Registry Authority | ✅ Accepted |
+| ADR-002 | Workspace Observation Ownership | ✅ Accepted |
+| ADR-003 | Service Communication Protocol | ✅ Accepted |
+| ADR-004 | Forge Intent Model | ✅ Accepted |
+| ADR-005 | Forge → Nexus Lifecycle Protocol | ✅ Accepted |
+| ADR-006 | Atlas as Context Source | ✅ Accepted |
+| ADR-007 | Forge Automation Triggers | ✅ Accepted |
+| ADR-008 | Inter-Service Authentication | ✅ Accepted |
+| ADR-009 | Atlas Phase 3 nexus.yaml Contract | ✅ Accepted |
+| ADR-010 | Forge Preflight Check | ✅ Accepted |
+| ADR-011 | Metrics Observer | ✅ Accepted |
+| ADR-012 | Navigator Observer | ✅ Accepted |
+| ADR-013 | Guardian Observer | ✅ Accepted |
+| ADR-014 | Observer Tracing | ✅ Accepted |
+| ADR-015 | SSE Streaming | ✅ Accepted |
+| ADR-016 | Platform Shared Types (Canon) | ✅ Accepted |
+| ADR-017 | Sentinel Observer | ✅ Accepted |
+| ADR-018 | Sentinel AI Reasoning | ✅ Accepted |
+| ADR-019 | ZP Developer Packaging Tool | ✅ Accepted |
+| ADR-020 | Observer Governance | ✅ Accepted |
+| ADR-021 | PreflightSnapshot in Execution History | ✅ Accepted |
+| ADR-022 | Service Registration API | ✅ Accepted |
+| ADR-023 | Platform Startup Grace (Reset) | ✅ Accepted |
+| ADR-024 | engx init — Project Onboarding | 🔜 Next |
+
+---
+
+## 7. Architecture Files
+
+```
+developer-platform/
+  standards/documentation.md            documentation system
+  definitions/glossary.md               canonical term definitions
+  architecture/decisions/               ADR-001 through ADR-023
+  architecture/platform-capability-boundaries.md
+  architecture/architecture-evolution-rules.md
+```
+
+Service repos: each contains `SERVICE-CONTRACT.md`, `nexus.yaml`, `.gitignore`
+
+---
+
+## 8. Open Items
+
+- ADR-024: `engx init` — user project onboarding command (generates `.nexus.yaml`)
+- `start.sh` — single boot script for distribution
+- Atlas auth: engx `check` command requires `--token` flag until Atlas auth is normalised
+- `engx build` requires `--path` flag until Atlas is reliably reachable

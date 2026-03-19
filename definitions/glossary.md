@@ -4,41 +4,16 @@ Canonical definitions for terms used across the engx developer platform.
 One meaning per term. All documents and ADRs reference these definitions.
 Do not redefine these terms locally in service documentation.
 
-Updated: 2026-03-18
-
----
-
-## Event
-
-A structured signal emitted by Nexus when something changes in the platform
-or workspace. Consumed by all observer services via polling `GET /events?since=<id>`
-or streaming `GET /events/stream`.
-
-**Delivery model:** at-least-once via cursor-based polling. Ordering: by Nexus event ID (monotonically increasing integer). Consumers must be idempotent — duplicate delivery is possible if a poll fails mid-cycle.
-
-**Owner:** Nexus (ADR-001, ADR-002)
-**Code:** `github.com/Harshmaury/Nexus/pkg/events/topics.go` — topic constants
-**Canon:** `github.com/Harshmaury/Canon/events/events.go` — EventType constants
-
----
-
-## Intent
-
-A developer-expressed desired action before it is structured into a Command.
-Raw strings, CLI input, automation triggers — all begin as intent and are
-translated into a Command object before the executor sees them.
-
-**Owner:** Forge (ADR-004)
-**Code:** `github.com/Harshmaury/Forge/internal/command/model.go`
+**Updated:** 2026-03-19
 
 ---
 
 ## Command
 
-The structured five-field object (id, intent, target, parameters, context)
-that is the only input Forge's executor accepts. All intent paths — CLI,
-workflow, automation trigger — produce a Command before execution.
-The schema is fixed. Extensions are additive only.
+The structured five-field object (`id`, `intent`, `target`, `parameters`, `context`)
+that is the only input Forge's executor accepts. All intent paths — CLI, workflow,
+automation trigger — produce a Command before execution. The schema is fixed.
+Extensions are additive only.
 
 **Owner:** Forge (ADR-004)
 **Code:** `github.com/Harshmaury/Forge/internal/command/model.go`
@@ -48,11 +23,26 @@ The schema is fixed. Extensions are additive only.
 ## Context
 
 Resolved workspace data from Atlas used by Forge at execution time.
-Captured once per workflow run before the step loop begins — not re-queried
-per step. Atlas provides context facts; Forge uses them to enrich Commands.
+Captured once per command before execution — not re-queried mid-execution.
+Atlas provides context facts; Forge uses them to enrich Commands.
 
 **Owner:** Atlas produces it. Forge consumes it. (ADR-006)
 **Code:** `github.com/Harshmaury/Forge/internal/context/resolver.go`
+
+---
+
+## Event
+
+A structured signal emitted by Nexus when something changes in the platform
+or workspace. Immutable once written. Consumed by all observer services via
+cursor-based polling: `GET /events?since=<lastEventID>&limit=<n>`.
+
+Events are not metrics. Events are discrete state transitions; metrics are
+continuous aggregations. Both describe the same system — neither supersedes the other.
+
+**Owner:** Nexus emits. Observers consume. (ADR-001, ADR-002)
+**Code:** `github.com/Harshmaury/Nexus/internal/state/db.go` — `Event` struct
+**Topics:** `github.com/Harshmaury/Nexus/pkg/events/topics.go`
 
 ---
 
@@ -67,15 +57,14 @@ stops, or triggers any platform action. Findings are audit outputs only.
 
 ---
 
-## Trace
+## Intent
 
-A correlated timeline of platform activity identified by a single X-Trace-ID
-value. A trace connects Nexus events, Forge execution records, and observer
-collection cycles that share the same trace ID. Assembled on demand by Observer.
+A developer-expressed desired action before it is structured into a Command.
+Raw strings, CLI input, automation triggers — all begin as intent and are
+translated into a Command object before the executor sees them.
 
-**Owner:** Observer assembles. Nexus, Atlas, Forge propagate. (ADR-014, ADR-015)
-**Code:** `github.com/Harshmaury/Observer/internal/trace/model.go`
-**Header constant:** `github.com/Harshmaury/Canon/identity/identity.go` — `TraceIDHeader`
+**Owner:** Forge (ADR-004)
+**Code:** `github.com/Harshmaury/Forge/internal/command/model.go`
 
 ---
 
@@ -85,10 +74,44 @@ An aggregated quantitative snapshot of platform health at a point in time.
 Derived from Nexus runtime counters, Forge execution history, and Atlas
 workspace state. Non-authoritative — reflects collected data, not system truth.
 
-**Relationship to events:** events are discrete state transitions; metrics are continuous aggregations derived from event streams and runtime counters. They describe different views of the same system — both are correct, neither supersedes the other.
-
 **Owner:** Metrics (ADR-011)
 **Code:** `github.com/Harshmaury/Metrics/internal/snapshot/model.go`
+
+---
+
+## PreflightSnapshot
+
+An immutable record of the Atlas graph state at the moment Forge authorizes
+a command execution. Captured once by `preflight.Checker.Check()` before
+execution begins — never re-queried between check and history log.
+Stored in `execution_history.preflight_snapshot_json` (ADR-021).
+
+**Owner:** Forge (ADR-021)
+**Code:** `github.com/Harshmaury/Forge/internal/preflight/checker.go`
+
+---
+
+## Project
+
+A registered workspace directory with a known `nexus.yaml` descriptor.
+Nexus is the sole registry. Atlas indexes projects and determines
+`verified`/`unverified` status from `nexus.yaml` validity.
+A project is not a service — one project may have zero or more services.
+
+**Owner:** Nexus registers. Atlas verifies. (ADR-001, ADR-009)
+**Code:** `github.com/Harshmaury/Nexus/internal/state/db.go` — `Project` struct
+
+---
+
+## Service
+
+A managed process associated with a project. Nexus tracks desired and actual
+state. engxa reconciles desired state by starting or stopping the process.
+Services persist in SQLite across Nexus restarts. Registered via
+`POST /services/register` (ADR-022).
+
+**Owner:** Nexus (ADR-022, ADR-023)
+**Code:** `github.com/Harshmaury/Nexus/internal/state/db.go` — `Service` struct
 
 ---
 
@@ -104,12 +127,24 @@ runtime state is Nexus.
 
 ---
 
-## PreflightSnapshot
+## Trace
 
-An immutable record of the Atlas graph state at the moment Forge authorizes
-a command execution. Captured once by `preflight.Checker.Check()` and passed
-by value through the execution pipeline — never re-queried between check and
-history log. Stored in `execution_history.preflight_snapshot_json` (ADR-021).
+A correlated timeline of platform activity identified by a single `X-Trace-ID`
+value. A trace connects Nexus events, Forge execution records, and observer
+collection cycles that share the same trace ID. Assembled on demand by Observer.
 
-**Owner:** Forge (ADR-021)
-**Code:** `github.com/Harshmaury/Forge/internal/preflight/checker.go`
+Each observer generates a per-cycle trace ID with a service prefix:
+`mt-` Metrics, `nv-` Navigator, `gd-` Guardian, `st-` Sentinel.
+
+**Owner:** Observer assembles. Nexus, Atlas, Forge propagate. (ADR-014, ADR-015)
+**Code:** `github.com/Harshmaury/Observer/internal/trace/model.go`
+**Header constant:** `github.com/Harshmaury/Canon/identity/identity.go` — `TraceIDHeader`
+
+---
+
+## Event Delivery Model
+
+Events are delivered at-least-once on successful polls. Successful polls
+advance the `lastEventID` cursor — each event is fetched exactly once per
+consumer. Failed polls replay from the last successful cursor position.
+No deduplication is needed on success; the cursor is the deduplication mechanism.
