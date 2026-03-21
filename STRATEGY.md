@@ -435,3 +435,26 @@ This document is owned by `engx-governance`. It must be updated whenever:
 The AI system working on any engx repo should treat this document as the
 authoritative source for what phase the platform is in and what is allowed
 in the current phase.
+
+---
+
+## Appendix — Setup Completed (2026-03-21)
+
+### GitHub Sponsors — Live
+
+Payment pipeline active:
+```
+GitHub → Stripe → Bank (INR)
+```
+
+Completed:
+- Bank account added with correct IFSC
+- PAN provided
+- W-8BEN (non-US tax form) submitted
+- Identity verification done
+- 2FA enabled
+- Stripe verified
+- Sponsor button live on Harshmaury profile and Nexus repo
+
+Anyone can now sponsor the project directly from GitHub.
+This is the first revenue channel — active before any Pro feature is built.
