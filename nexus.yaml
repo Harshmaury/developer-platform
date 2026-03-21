@@ -1,0 +1,5 @@
+name: engx-governance
+id: engx-governance
+type: cli
+language: go
+version: 1.0.0
