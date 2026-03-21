@@ -138,7 +138,7 @@ Canon is in `go.mod` for all 8 service repos. Never hardcode header strings.
 | ADR-034 | Herald — Typed Nexus HTTP Client | ✅ Accepted |
 | ADR-035 | engx deregister — Remove Ghost Projects | ✅ Accepted + Shipped (v1.7.0) |
 | ADR-036 | GET /system/graph — Unified Topology Endpoint | ✅ Accepted + Shipped (v1.7.0) |
-| ADR-037 | Signal System — Event Schema Enhancement | ✅ Accepted — **not yet implemented** |
+| ADR-037 | Signal System — Event Schema Enhancement | ✅ Accepted + Shipped (Nexus d34f03a, Canon f493f89) |
 | ADR-038 | POST /system/validate — Pre-Execution Policy Gate | ✅ Accepted + Shipped (v1.7.0) |
 | ADR-039 | Herald Migration — Replace Internal Nexus Collectors | ✅ Accepted — **not yet implemented** |
 | ADR-040 | Outcome-Centric UX: Progressive Disclosure | ✅ Accepted + Shipped (v1.7.0) |
@@ -162,7 +162,7 @@ Service repos: each contains `SERVICE-CONTRACT.md`, `nexus.yaml`, `.nexus.yaml`,
 
 ## 8. Open Items
 
-- **ADR-037**: DB migration v6 (level/span_id/parent_span_id columns) + Canon level constants — not implemented
+- ~~ADR-037~~: shipped — DB migration v6, Event struct, AppendEvent, Canon LevelInfo/Warn/Error
 - **ADR-039**: Herald migration — replace `internal/collector/nexus.go` in Guardian, Observer, Metrics, Navigator, Sentinel — not started
 - **ADR-032**: `engx platform start --register` flag — implementation pending (startup sequence still uses manual loop)
 - `binary-versions` doctor check: version string not injected until goreleaser pipeline used for local builds
