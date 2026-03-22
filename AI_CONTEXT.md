@@ -4,7 +4,7 @@ Context document for AI systems working within this developer platform.
 Read this file at the start of any session involving platform architecture,
 new service design, code changes, or cross-project integration work.
 
-**Updated:** 2026-03-21 | **Tag:** v2.0.0-candidate
+**Updated:** 2026-03-23 | **Tag:** v2.0.0-hardened
 
 ---
 
@@ -39,7 +39,7 @@ This repository governs the platform. It contains no implementation code.
 | Guardian  | v0.2.0-phase2    | 1–2      | Herald v1.5 collectors. Per-cycle trace ID, WARNING logs |
 | Observer  | v0.2.0-phase2    | 1–2      | Herald v1.5 collector. Trace ring buffer 200 entries |
 | Sentinel  | v0.3.0-phase3    | 1–3      | Herald v1.5 collector. Race fix (T2-A). engine_test S-001–S-008 |
-| Canon     | v0.3.0           | —        | identity constants, default addrs, descriptor package |
+| Canon     | v1.0.1           | —        | identity constants, default addrs, descriptor package |
 | ZP        | v2.0.0           | —        | packaging tool, LoadFromID dead code removed |
 | Arbiter   | v0.1.0           | —        | Enforcement — ADR-047, packaging + execution gate |
 | Relay     | v0.1.0           | —        | Control: public tunnel :9090/:9091, ADR-041 |
