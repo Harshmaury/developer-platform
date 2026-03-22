@@ -41,6 +41,9 @@ This repository governs the platform. It contains no implementation code.
 | Sentinel  | v0.3.0-phase3    | 1–3      | Herald v1.5 collector. Race fix (T2-A). engine_test S-001–S-008 |
 | Canon     | v0.3.0           | —        | identity constants, default addrs, descriptor package |
 | ZP        | v2.0.0           | —        | packaging tool, LoadFromID dead code removed |
+| Arbiter   | v0.1.0           | —        | Enforcement — ADR-047, packaging + execution gate |
+| Relay     | v0.1.0           | —        | Control: public tunnel :9090/:9091, ADR-041 |
+| Conduit   | v0.1.0           | —        | Control: remote agent bridge :9092/:9093, ADR-042 |
 | Accord    | v0.1.2           | —        | shared API types + upstream DTOs (Atlas, Forge, Guardian, NexusMetrics) |
 | Herald    | v0.1.5           | —        | typed client — Nexus + Atlas + Forge + Guardian + NexusMetrics |
 
@@ -70,6 +73,7 @@ This repository governs the platform. It contains no implementation code.
 | 11 | `engx register` auto-registers project + service from `.nexus.yaml` runtime section | ADR-022 |
 | 12 | `engx platform start` resets fail counts before queuing — never start without reset | ADR-023 |
 | 13 | `engx platform start` requires services to be registered — use `--register` on first boot | ADR-032 |
+| 14 | `arbiter verify` must pass before `zp` produces any package — Canon violations block packaging | ADR-047 |
 
 ---
 
